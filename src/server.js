@@ -4,6 +4,7 @@ import { createServer } from 'http';
 import { Server } from 'socket.io';
 import dotenv from 'dotenv';
 import jobsRouter from './routes/jobs.js';
+import { testConnection as testDbConnection } from './db/index.js';
 
 dotenv.config();
 
@@ -40,7 +41,13 @@ io.on('connection', (socket) => {
 
 const PORT = process.env.PORT || 3001;
 
-httpServer.listen(PORT, () => {
+httpServer.listen(PORT, async () => {
   console.log(`Server running on http://localhost:${PORT}`);
-  console.log(`WebSocket server ready`);
+  console.log('WebSocket server ready');
+  const dbOk = await testDbConnection();
+  if (dbOk) {
+    console.log('Database connection OK');
+  } else {
+    console.log('Database not configured or unavailable (using in-memory store)');
+  }
 });
