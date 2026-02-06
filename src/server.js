@@ -3,8 +3,8 @@ import cors from 'cors';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
 import dotenv from 'dotenv';
-import jobsRouter from './routes/jobs.js';
-import { testConnection as testDbConnection } from './db/index.js';
+import jobsRouter from './routes/jobs/index.js';
+import { testConnection as testDbConnection } from './db/connection.js';
 
 dotenv.config();
 

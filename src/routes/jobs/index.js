@@ -1,44 +1,8 @@
 import express from 'express';
-import multer from 'multer';
-import path from 'path';
-import { fileURLToPath } from 'url';
-import fs from 'fs';
-import * as jobsService from '../services/jobsService.js';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+import { upload } from '../../middleware/upload.js';
+import * as jobsService from '../../services/jobsService.js';
 
 const router = express.Router();
-
-// Upload directory and multer config (route-layer concern)
-const uploadDir = process.env.UPLOAD_DIR || path.join(__dirname, '../../uploads');
-if (!fs.existsSync(uploadDir)) {
-  fs.mkdirSync(uploadDir, { recursive: true });
-}
-
-const storage = multer.diskStorage({
-  destination: (_req, _file, cb) => cb(null, uploadDir),
-  filename: (_req, file, cb) => {
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
-    cb(null, uniqueSuffix + '-' + file.originalname);
-  },
-});
-
-const upload = multer({
-  storage,
-  limits: {
-    fileSize: parseInt(process.env.MAX_FILE_SIZE || '104857600', 10), // 100MB default
-  },
-  fileFilter: (_req, file, cb) => {
-    const allowedTypes = ['.txt', '.csv', '.tsv', '.json'];
-    const ext = path.extname(file.originalname).toLowerCase();
-    if (allowedTypes.includes(ext)) {
-      cb(null, true);
-    } else {
-      cb(new Error('Invalid file type. Only .txt, .csv, .tsv, and .json files are allowed.'));
-    }
-  },
-});
 
 // GET /api/jobs
 router.get('/', (req, res) => {
