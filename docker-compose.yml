@@ -1,0 +1,29 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: textops-postgres
+    environment:
+      POSTGRES_DB: textops
+      POSTGRES_USER: textops_user
+      POSTGRES_PASSWORD: textops_password
+      PGDATA: /var/lib/postgresql/data/pgdata
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U textops_user -d textops"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - textops-network
+
+volumes:
+  postgres_data:
+
+networks:
+  textops-network:
+    driver: bridge
