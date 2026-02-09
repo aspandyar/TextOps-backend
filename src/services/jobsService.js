@@ -2,12 +2,13 @@ import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
 import { getTextStats } from '../algorithms/textStats.js';
+import { loadJobs, saveJobs } from '../store/jobsStore.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// In-memory store for jobs (replace with DB when persistence is needed)
-let jobs = [];
+// In-memory store for jobs, loaded from disk so they survive server restart
+let jobs = loadJobs();
 
 /**
  * List jobs with optional filters.
@@ -47,6 +48,18 @@ export function createJob({ filePath, originalname, size, jobType, options = {} 
     completedAt: null,
   };
   jobs.push(job);
+  saveJobs(jobs);
+  return job;
+}
+
+/**
+ * Update an existing job by id. Merges updates and persists.
+ */
+export function updateJob(id, updates) {
+  const job = getJobById(id);
+  if (!job) return null;
+  Object.assign(job, updates, { updatedAt: new Date().toISOString() });
+  saveJobs(jobs);
   return job;
 }
 
@@ -59,6 +72,7 @@ export function cancelJob(id) {
   if (job.status === 'completed' || job.status === 'cancelled') return null;
   job.status = 'cancelled';
   job.updatedAt = new Date().toISOString();
+  saveJobs(jobs);
   return job;
 }
 
@@ -77,6 +91,7 @@ export function deleteJob(id, { removeFile = true } = {}) {
     }
   }
   jobs.splice(index, 1);
+  saveJobs(jobs);
   return true;
 }
 

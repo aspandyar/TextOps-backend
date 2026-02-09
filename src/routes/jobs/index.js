@@ -58,15 +58,40 @@ router.post('/', upload.single('file'), (req, res) => {
     if (!jobType) {
       return res.status(400).json({ error: 'Job type is required' });
     }
-    const optionsParsed = options ? JSON.parse(options) : {};
+
+    const file = req.file;
+    console.log(`[Jobs] Received file: "${file.originalname}", size: ${file.size} bytes, jobType: ${jobType}`);
+
+    const optionsParsed = options ? JSON.parse(options || '{}') : {};
     const job = jobsService.createJob({
-      filePath: req.file.path,
-      originalname: req.file.originalname,
-      size: req.file.size,
+      filePath: file.path,
+      originalname: file.originalname,
+      size: file.size,
       jobType,
       options: optionsParsed,
     });
-    res.status(201).json(job);
+
+    // Process file and complete the job (sync for word-count / text-stats style jobs)
+    try {
+      const { stats } = jobsService.processFileWithAlgorithms(job.filePath, job.type);
+      jobsService.updateJob(job.id, {
+        status: 'completed',
+        progress: 100,
+        result: { stats },
+        completedAt: new Date().toISOString(),
+      });
+      console.log(`[Jobs] Job ${job.id} completed successfully (file: ${file.originalname})`);
+    } catch (processErr) {
+      jobsService.updateJob(job.id, {
+        status: 'failed',
+        errorMessage: processErr.message,
+        updatedAt: new Date().toISOString(),
+      });
+      console.error(`[Jobs] Job ${job.id} failed:`, processErr.message);
+    }
+
+    const updatedJob = jobsService.getJobById(job.id);
+    res.status(201).json(updatedJob);
   } catch (error) {
     console.error('Error creating job:', error);
     res.status(500).json({ error: 'Failed to create job' });
