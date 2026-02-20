@@ -4,6 +4,7 @@ import { createServer } from 'http';
 import { Server } from 'socket.io';
 import dotenv from 'dotenv';
 import jobsRouter from './routes/jobs/index.js';
+import authRouter from './routes/auth/index.js';
 import { testConnection as testDbConnection } from './db/connection.js';
 
 dotenv.config();
@@ -28,6 +29,7 @@ app.get('/health', (req, res) => {
 });
 
 // Routes
+app.use('/api/auth', authRouter);
 app.use('/api/jobs', jobsRouter);
 
 // WebSocket connection

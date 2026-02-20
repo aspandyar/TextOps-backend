@@ -11,29 +11,36 @@ const __dirname = path.dirname(__filename);
 let jobs = loadJobs();
 
 /**
- * List jobs with optional filters.
+ * List jobs with optional filters. If isAdmin is false, only jobs for userId are returned.
  */
-export function listJobs({ status, type } = {}) {
+export function listJobs({ userId, isAdmin, status, type } = {}) {
   let filtered = [...jobs];
+  if (!isAdmin && userId) {
+    filtered = filtered.filter((j) => j.userId === userId);
+  }
   if (status) filtered = filtered.filter((j) => j.status === status);
   if (type) filtered = filtered.filter((j) => j.type === type);
   return filtered;
 }
 
 /**
- * Get a single job by id. Returns null if not found.
+ * Get a single job by id. If userId and isAdmin are provided, enforces access (user owns job or is admin).
  */
-export function getJobById(id) {
-  return jobs.find((j) => j.id === id) ?? null;
+export function getJobById(id, { userId, isAdmin } = {}) {
+  const job = jobs.find((j) => j.id === id) ?? null;
+  if (!job) return null;
+  if (userId !== undefined && !isAdmin && job.userId !== userId) return null;
+  return job;
 }
 
 /**
  * Create a new job from upload info. Returns the created job.
  */
-export function createJob({ filePath, originalname, size, jobType, options = {} }) {
+export function createJob({ userId, filePath, originalname, size, jobType, options = {} }) {
   const id = String(Date.now());
   const job = {
     id,
+    userId: userId || null,
     type: jobType,
     fileName: originalname,
     fileSize: size,
@@ -64,10 +71,10 @@ export function updateJob(id, updates) {
 }
 
 /**
- * Cancel a job. Returns the updated job or null if not found / already terminal.
+ * Cancel a job. Returns the updated job or null if not found / already terminal. Enforces access if userId/isAdmin provided.
  */
-export function cancelJob(id) {
-  const job = getJobById(id);
+export function cancelJob(id, { userId, isAdmin } = {}) {
+  const job = getJobById(id, { userId, isAdmin });
   if (!job) return null;
   if (job.status === 'completed' || job.status === 'cancelled') return null;
   job.status = 'cancelled';
@@ -77,17 +84,19 @@ export function cancelJob(id) {
 }
 
 /**
- * Delete a job and optionally remove its file from disk. Returns true if deleted.
+ * Delete a job and optionally remove its file from disk. Returns true if deleted. Enforces access if userId/isAdmin provided.
  */
-export function deleteJob(id, { removeFile = true } = {}) {
+export function deleteJob(id, { removeFile = true, userId, isAdmin } = {}) {
+  const job = getJobById(id, { userId, isAdmin });
+  if (!job) return false;
   const index = jobs.findIndex((j) => j.id === id);
   if (index === -1) return false;
-  const job = jobs[index];
-  if (removeFile && job.filePath && fs.existsSync(job.filePath)) {
+  const jobAt = jobs[index];
+  if (removeFile && jobAt.filePath && fs.existsSync(jobAt.filePath)) {
     try {
-      fs.unlinkSync(job.filePath);
+      fs.unlinkSync(jobAt.filePath);
     } catch (err) {
-      console.error('Failed to delete job file:', job.filePath, err);
+      console.error('Failed to delete job file:', jobAt.filePath, err);
     }
   }
   jobs.splice(index, 1);
@@ -96,10 +105,10 @@ export function deleteJob(id, { removeFile = true } = {}) {
 }
 
 /**
- * Get result payload for a completed job. Returns null if not found or not completed.
+ * Get result payload for a completed job. Returns null if not found or not completed. Enforces access if userId/isAdmin provided.
  */
-export function getJobResult(id) {
-  const job = getJobById(id);
+export function getJobResult(id, { userId, isAdmin } = {}) {
+  const job = getJobById(id, { userId, isAdmin });
   if (!job || job.status !== 'completed') return null;
   return {
     id: job.id,

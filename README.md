@@ -28,9 +28,15 @@ The server will run on `http://localhost:3001`
 
 ## API Endpoints
 
-- `GET /api/jobs` - Get all jobs
-- `GET /api/jobs/:id` - Get a specific job
-- `POST /api/jobs` - Create a new job (multipart/form-data with file)
+### Auth (no token required)
+- `POST /api/auth/register` - Register (body: `{ email, password }`). First user becomes admin.
+- `POST /api/auth/login` - Login (body: `{ email, password }`). Returns `{ token, user }`.
+- `GET /api/auth/me` - Current user (requires `Authorization: Bearer <token>`).
+
+### Jobs (all require `Authorization: Bearer <token>`)
+- `GET /api/jobs` - List jobs (own jobs only; admins see all)
+- `GET /api/jobs/:id` - Get a job (owner or admin)
+- `POST /api/jobs` - Create a job (multipart/form-data with file)
 - `POST /api/jobs/:id/cancel` - Cancel a job
 - `DELETE /api/jobs/:id` - Delete a job
 - `GET /api/jobs/:id/result` - Get job result
@@ -45,3 +51,4 @@ The server will run on `http://localhost:3001`
 - `DB_PASSWORD` - Database password (default: textops_password)
 - `MAX_FILE_SIZE` - Maximum file size in bytes (default: 104857600 = 100MB)
 - `UPLOAD_DIR` - Directory for uploaded files (default: ./uploads)
+- `JWT_SECRET` - Secret for JWT signing (default: dev-only secret; set in production)

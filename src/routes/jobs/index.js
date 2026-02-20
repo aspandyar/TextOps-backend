@@ -1,14 +1,22 @@
 import express from 'express';
 import { upload } from '../../middleware/upload.js';
+import { requireAuth } from '../../middleware/auth.js';
 import * as jobsService from '../../services/jobsService.js';
 
 const router = express.Router();
+const access = (req) => ({ userId: req.user?.id, isAdmin: req.user?.role === 'admin' });
 
-// GET /api/jobs
+router.use(requireAuth);
+
 router.get('/', (req, res) => {
   try {
     const { status, type } = req.query;
-    const jobs = jobsService.listJobs({ status, type });
+    const jobs = jobsService.listJobs({
+      userId: req.user.id,
+      isAdmin: req.user.role === 'admin',
+      status,
+      type,
+    });
     res.json(jobs);
   } catch (error) {
     console.error('Error fetching jobs:', error);
@@ -16,12 +24,11 @@ router.get('/', (req, res) => {
   }
 });
 
-// GET /api/jobs/:id/result (must be before GET /:id)
 router.get('/:id/result', (req, res) => {
   try {
-    const result = jobsService.getJobResult(req.params.id);
+    const result = jobsService.getJobResult(req.params.id, access(req));
     if (!result) {
-      const job = jobsService.getJobById(req.params.id);
+      const job = jobsService.getJobById(req.params.id, access(req));
       if (!job) {
         return res.status(404).json({ error: 'Job not found' });
       }
@@ -34,10 +41,9 @@ router.get('/:id/result', (req, res) => {
   }
 });
 
-// GET /api/jobs/:id
 router.get('/:id', (req, res) => {
   try {
-    const job = jobsService.getJobById(req.params.id);
+    const job = jobsService.getJobById(req.params.id, access(req));
     if (!job) {
       return res.status(404).json({ error: 'Job not found' });
     }
@@ -48,7 +54,6 @@ router.get('/:id', (req, res) => {
   }
 });
 
-// POST /api/jobs
 router.post('/', upload.single('file'), (req, res) => {
   try {
     if (!req.file) {
@@ -60,10 +65,11 @@ router.post('/', upload.single('file'), (req, res) => {
     }
 
     const file = req.file;
-    console.log(`[Jobs] Received file: "${file.originalname}", size: ${file.size} bytes, jobType: ${jobType}`);
+    console.log(`[Jobs] Received file: "${file.originalname}", size: ${file.size} bytes, jobType: ${jobType}, userId: ${req.user.id}`);
 
     const optionsParsed = options ? JSON.parse(options || '{}') : {};
     const job = jobsService.createJob({
+      userId: req.user.id,
       filePath: file.path,
       originalname: file.originalname,
       size: file.size,
@@ -71,7 +77,6 @@ router.post('/', upload.single('file'), (req, res) => {
       options: optionsParsed,
     });
 
-    // Process file and complete the job (sync for word-count / text-stats style jobs)
     try {
       const { stats } = jobsService.processFileWithAlgorithms(job.filePath, job.type);
       jobsService.updateJob(job.id, {
@@ -98,12 +103,11 @@ router.post('/', upload.single('file'), (req, res) => {
   }
 });
 
-// POST /api/jobs/:id/cancel
 router.post('/:id/cancel', (req, res) => {
   try {
-    const job = jobsService.cancelJob(req.params.id);
+    const job = jobsService.cancelJob(req.params.id, access(req));
     if (!job) {
-      const existing = jobsService.getJobById(req.params.id);
+      const existing = jobsService.getJobById(req.params.id, access(req));
       if (!existing) {
         return res.status(404).json({ error: 'Job not found' });
       }
@@ -118,10 +122,9 @@ router.post('/:id/cancel', (req, res) => {
   }
 });
 
-// DELETE /api/jobs/:id
 router.delete('/:id', (req, res) => {
   try {
-    const deleted = jobsService.deleteJob(req.params.id);
+    const deleted = jobsService.deleteJob(req.params.id, { ...access(req), removeFile: true });
     if (!deleted) {
       return res.status(404).json({ error: 'Job not found' });
     }
