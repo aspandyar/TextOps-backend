@@ -42,6 +42,42 @@ router.get('/:id/result', async (req, res) => {
   }
 });
 
+router.get('/:id/download', async (req, res) => {
+  try {
+    const data = await jobsService.getResultFileStream(req.params.id, access(req));
+    if (!data) {
+      const job = await jobsService.getJobById(req.params.id, access(req));
+      if (!job) return res.status(404).json({ error: 'Job not found' });
+      if (job.status !== 'completed') return res.status(400).json({ error: 'Job has no result file yet' });
+      return res.status(404).json({ error: 'Result file not available' });
+    }
+    res.setHeader('Content-Disposition', `attachment; filename="${data.fileName}"`);
+    data.stream.pipe(res);
+  } catch (error) {
+    logger.error({ err: error }, 'Error downloading job result');
+    res.status(500).json({ error: 'Failed to download' });
+  }
+});
+
+router.get('/:id/output', async (req, res) => {
+  try {
+    const data = await jobsService.getResultOutputText(req.params.id, access(req));
+    if (!data) {
+      const job = await jobsService.getJobById(req.params.id, access(req));
+      if (!job) return res.status(404).json({ error: 'Job not found' });
+      return res.status(400).json({ error: 'No output text for this job' });
+    }
+    if (data.statsOnly) return res.status(400).json({ error: 'This job has stats only, no output file' });
+    if (data.tooLarge) {
+      return res.status(413).json({ error: 'Output too large to display', size: data.size });
+    }
+    res.type('text/plain').send(data.text ?? '');
+  } catch (error) {
+    logger.error({ err: error }, 'Error fetching job output');
+    res.status(500).json({ error: 'Failed to fetch output' });
+  }
+});
+
 router.get('/:id', async (req, res) => {
   try {
     const job = await jobsService.getJobById(req.params.id, access(req));
@@ -82,11 +118,22 @@ router.post('/', upload.single('file'), async (req, res) => {
     });
 
     try {
-      const { stats } = jobsService.processFileWithAlgorithms(job.filePath, job.type);
+      const processed = jobsService.processFileWithAlgorithms(
+        job.filePath,
+        job.type,
+        optionsParsed,
+        file.originalname,
+        job.id
+      );
       await jobsService.updateJob(job.id, {
         status: 'completed',
         progress: 100,
-        result: { stats },
+        result: {
+          stats: processed.stats,
+          resultFilePath: processed.resultFilePath,
+          resultFileName: processed.resultFileName,
+          outputLength: processed.outputLength,
+        },
         completedAt: new Date().toISOString(),
       });
       logger.info({ jobId: job.id, file: file.originalname }, 'Job completed');
