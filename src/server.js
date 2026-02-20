@@ -5,7 +5,10 @@ import { Server } from 'socket.io';
 import dotenv from 'dotenv';
 import jobsRouter from './routes/jobs/index.js';
 import authRouter from './routes/auth/index.js';
-import { testConnection as testDbConnection } from './db/connection.js';
+import { getPool, testConnection } from './db/connection.js';
+import { initSchema } from './db/schema.js';
+import { ensureAdminFromEnv } from './db/seedAdmin.js';
+import logger from './logger.js';
 
 dotenv.config();
 
@@ -18,38 +21,34 @@ const io = new Server(httpServer, {
   },
 });
 
-// Middleware
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Health check
 app.get('/health', (req, res) => {
   res.json({ status: 'ok' });
 });
 
-// Routes
 app.use('/api/auth', authRouter);
 app.use('/api/jobs', jobsRouter);
 
-// WebSocket connection
 io.on('connection', (socket) => {
-  console.log('Client connected:', socket.id);
-
+  logger.debug({ socketId: socket.id }, 'Client connected');
   socket.on('disconnect', () => {
-    console.log('Client disconnected:', socket.id);
+    logger.debug({ socketId: socket.id }, 'Client disconnected');
   });
 });
 
 const PORT = process.env.PORT || 3001;
 
 httpServer.listen(PORT, async () => {
-  console.log(`Server running on http://localhost:${PORT}`);
-  console.log('WebSocket server ready');
-  const dbOk = await testDbConnection();
+  logger.info({ port: PORT }, 'Server running');
+  const dbOk = await testConnection();
   if (dbOk) {
-    console.log('Database connection OK');
+    await initSchema();
+    await ensureAdminFromEnv();
+    logger.info('Database ready');
   } else {
-    console.log('Database not configured or unavailable (using in-memory store)');
+    logger.warn('Database not configured or unavailable');
   }
 });

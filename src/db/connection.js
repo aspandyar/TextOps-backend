@@ -1,4 +1,5 @@
 import pg from 'pg';
+import logger from '../logger.js';
 
 const { Pool } = pg;
 
@@ -6,7 +7,7 @@ let pool = null;
 
 /**
  * Get or create the database connection pool.
- * Returns null if DB_* env vars are not set (e.g. in-memory mode).
+ * Returns null if DB_* env vars are not set.
  */
 export function getPool() {
   if (pool) return pool;
@@ -18,7 +19,7 @@ export function getPool() {
   const password = process.env.DB_PASSWORD;
 
   if (!host || !database || !user) {
-    console.warn('DB config missing (DB_HOST, DB_NAME, DB_USER). Running without database.');
+    logger.warn('DB config missing (DB_HOST, DB_NAME, DB_USER). Running without database.');
     return null;
   }
 
@@ -34,7 +35,7 @@ export function getPool() {
   });
 
   pool.on('error', (err) => {
-    console.error('Unexpected DB pool error:', err);
+    logger.error({ err }, 'Unexpected DB pool error');
   });
 
   return pool;
@@ -51,7 +52,7 @@ export async function testConnection() {
     client.release();
     return true;
   } catch (err) {
-    console.error('DB connection test failed:', err.message);
+    logger.error({ err: err.message }, 'DB connection test failed');
     return false;
   }
 }

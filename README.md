@@ -1,6 +1,6 @@
 # TextOps Backend
 
-Simple backend API for TextOps Dashboard that accepts API calls from the frontend.
+Backend API for TextOps Dashboard. Auth and jobs are stored in **PostgreSQL**; uploaded files are stored on disk.
 
 ## Setup
 
@@ -43,12 +43,13 @@ The server will run on `http://localhost:3001`
 
 ## Environment Variables
 
+See `.env.example` for a full list. Main variables:
+
+- `NODE_ENV` - `development` or `production` (affects logging format)
 - `PORT` - Server port (default: 3001)
-- `DB_HOST` - Database host (default: localhost)
-- `DB_PORT` - Database port (default: 5432)
-- `DB_NAME` - Database name (default: textops)
-- `DB_USER` - Database user (default: textops_user)
-- `DB_PASSWORD` - Database password (default: textops_password)
-- `MAX_FILE_SIZE` - Maximum file size in bytes (default: 104857600 = 100MB)
-- `UPLOAD_DIR` - Directory for uploaded files (default: ./uploads)
-- `JWT_SECRET` - Secret for JWT signing (default: dev-only secret; set in production)
+- `LOG_LEVEL` - Log level: `trace`, `debug`, `info`, `warn`, `error` (default: `debug` in dev, `info` in prod)
+- `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASSWORD` - PostgreSQL connection (required for auth and jobs)
+- `JWT_SECRET` - Secret for JWT signing (set in production)
+- `ADMIN_EMAIL`, `ADMIN_PASSWORD` - Optional; if set, an admin user is created on startup when it does not exist (logged)
+- `CORS_ORIGIN` - Allowed origin for frontend (e.g. `http://localhost:5173`)
+- `UPLOAD_DIR`, `MAX_FILE_SIZE` - File upload settings

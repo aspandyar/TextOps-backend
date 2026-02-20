@@ -2,16 +2,17 @@ import express from 'express';
 import { upload } from '../../middleware/upload.js';
 import { requireAuth } from '../../middleware/auth.js';
 import * as jobsService from '../../services/jobsService.js';
+import logger from '../../logger.js';
 
 const router = express.Router();
 const access = (req) => ({ userId: req.user?.id, isAdmin: req.user?.role === 'admin' });
 
 router.use(requireAuth);
 
-router.get('/', (req, res) => {
+router.get('/', async (req, res) => {
   try {
     const { status, type } = req.query;
-    const jobs = jobsService.listJobs({
+    const jobs = await jobsService.listJobs({
       userId: req.user.id,
       isAdmin: req.user.role === 'admin',
       status,
@@ -19,16 +20,16 @@ router.get('/', (req, res) => {
     });
     res.json(jobs);
   } catch (error) {
-    console.error('Error fetching jobs:', error);
+    logger.error({ err: error }, 'Error fetching jobs');
     res.status(500).json({ error: 'Failed to fetch jobs' });
   }
 });
 
-router.get('/:id/result', (req, res) => {
+router.get('/:id/result', async (req, res) => {
   try {
-    const result = jobsService.getJobResult(req.params.id, access(req));
+    const result = await jobsService.getJobResult(req.params.id, access(req));
     if (!result) {
-      const job = jobsService.getJobById(req.params.id, access(req));
+      const job = await jobsService.getJobById(req.params.id, access(req));
       if (!job) {
         return res.status(404).json({ error: 'Job not found' });
       }
@@ -36,25 +37,25 @@ router.get('/:id/result', (req, res) => {
     }
     res.json(result);
   } catch (error) {
-    console.error('Error fetching job result:', error);
+    logger.error({ err: error }, 'Error fetching job result');
     res.status(500).json({ error: 'Failed to fetch job result' });
   }
 });
 
-router.get('/:id', (req, res) => {
+router.get('/:id', async (req, res) => {
   try {
-    const job = jobsService.getJobById(req.params.id, access(req));
+    const job = await jobsService.getJobById(req.params.id, access(req));
     if (!job) {
       return res.status(404).json({ error: 'Job not found' });
     }
     res.json(job);
   } catch (error) {
-    console.error('Error fetching job:', error);
+    logger.error({ err: error }, 'Error fetching job');
     res.status(500).json({ error: 'Failed to fetch job' });
   }
 });
 
-router.post('/', upload.single('file'), (req, res) => {
+router.post('/', upload.single('file'), async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({ error: 'No file uploaded' });
@@ -65,10 +66,13 @@ router.post('/', upload.single('file'), (req, res) => {
     }
 
     const file = req.file;
-    console.log(`[Jobs] Received file: "${file.originalname}", size: ${file.size} bytes, jobType: ${jobType}, userId: ${req.user.id}`);
+    logger.info(
+      { file: file.originalname, size: file.size, jobType, userId: req.user.id },
+      'Job file received'
+    );
 
     const optionsParsed = options ? JSON.parse(options || '{}') : {};
-    const job = jobsService.createJob({
+    const job = await jobsService.createJob({
       userId: req.user.id,
       filePath: file.path,
       originalname: file.originalname,
@@ -79,35 +83,34 @@ router.post('/', upload.single('file'), (req, res) => {
 
     try {
       const { stats } = jobsService.processFileWithAlgorithms(job.filePath, job.type);
-      jobsService.updateJob(job.id, {
+      await jobsService.updateJob(job.id, {
         status: 'completed',
         progress: 100,
         result: { stats },
         completedAt: new Date().toISOString(),
       });
-      console.log(`[Jobs] Job ${job.id} completed successfully (file: ${file.originalname})`);
+      logger.info({ jobId: job.id, file: file.originalname }, 'Job completed');
     } catch (processErr) {
-      jobsService.updateJob(job.id, {
+      await jobsService.updateJob(job.id, {
         status: 'failed',
         errorMessage: processErr.message,
-        updatedAt: new Date().toISOString(),
       });
-      console.error(`[Jobs] Job ${job.id} failed:`, processErr.message);
+      logger.error({ err: processErr, jobId: job.id }, 'Job failed');
     }
 
-    const updatedJob = jobsService.getJobById(job.id);
+    const updatedJob = await jobsService.getJobById(job.id);
     res.status(201).json(updatedJob);
   } catch (error) {
-    console.error('Error creating job:', error);
+    logger.error({ err: error }, 'Error creating job');
     res.status(500).json({ error: 'Failed to create job' });
   }
 });
 
-router.post('/:id/cancel', (req, res) => {
+router.post('/:id/cancel', async (req, res) => {
   try {
-    const job = jobsService.cancelJob(req.params.id, access(req));
+    const job = await jobsService.cancelJob(req.params.id, access(req));
     if (!job) {
-      const existing = jobsService.getJobById(req.params.id, access(req));
+      const existing = await jobsService.getJobById(req.params.id, access(req));
       if (!existing) {
         return res.status(404).json({ error: 'Job not found' });
       }
@@ -117,20 +120,23 @@ router.post('/:id/cancel', (req, res) => {
     }
     res.json({ message: 'Job cancelled successfully', id: req.params.id });
   } catch (error) {
-    console.error('Error cancelling job:', error);
+    logger.error({ err: error }, 'Error cancelling job');
     res.status(500).json({ error: 'Failed to cancel job' });
   }
 });
 
-router.delete('/:id', (req, res) => {
+router.delete('/:id', async (req, res) => {
   try {
-    const deleted = jobsService.deleteJob(req.params.id, { ...access(req), removeFile: true });
+    const deleted = await jobsService.deleteJob(req.params.id, {
+      ...access(req),
+      removeFile: true,
+    });
     if (!deleted) {
       return res.status(404).json({ error: 'Job not found' });
     }
     res.json({ message: 'Job deleted successfully', id: req.params.id });
   } catch (error) {
-    console.error('Error deleting job:', error);
+    logger.error({ err: error }, 'Error deleting job');
     res.status(500).json({ error: 'Failed to delete job' });
   }
 });
