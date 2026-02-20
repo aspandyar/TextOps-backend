@@ -28,7 +28,9 @@ export function sortNumbers(content, options = {}) {
 }
 
 /**
- * Remove duplicate lines. options.caseSensitive (default false) for comparison.
+ * Remove duplicate lines. Keeps first occurrence of each unique line.
+ * options.caseSensitive (default false) for comparison.
+ * Lines are trimmed before comparing so "one" and " one " count as the same.
  */
 export function removeDuplicates(content, options = {}) {
   if (content == null || typeof content !== 'string') return '';
@@ -37,10 +39,11 @@ export function removeDuplicates(content, options = {}) {
   const seen = new Set();
   const out = [];
   for (const line of lines) {
-    const key = caseSensitive ? line : line.toLowerCase();
+    const trimmed = line.trim();
+    const key = caseSensitive ? trimmed : trimmed.toLowerCase();
     if (!seen.has(key)) {
       seen.add(key);
-      out.push(line);
+      out.push(trimmed);
     }
   }
   return out.join('\n');

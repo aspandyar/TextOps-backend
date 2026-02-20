@@ -96,7 +96,9 @@ router.post('/', upload.single('file'), async (req, res) => {
     if (!req.file) {
       return res.status(400).json({ error: 'No file uploaded' });
     }
-    const { jobType, options } = req.body;
+    const rawType = req.body.jobType;
+    const jobType = typeof rawType === 'string' ? rawType.trim().toLowerCase() : '';
+    const options = req.body.options;
     if (!jobType) {
       return res.status(400).json({ error: 'Job type is required' });
     }
@@ -120,7 +122,7 @@ router.post('/', upload.single('file'), async (req, res) => {
     try {
       const processed = jobsService.processFileWithAlgorithms(
         job.filePath,
-        job.type,
+        jobType,
         optionsParsed,
         file.originalname,
         job.id
